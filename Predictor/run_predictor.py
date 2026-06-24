@@ -21,13 +21,13 @@ def main():
     print('Training model...')
     metrics = p.train(df)
     print(f"Training complete. RMSE on hold-out set: {metrics['rmse']:.3f}")
-    # Predict all students with missing target
+    # Predict all students with any missing score in their row
     df_clean = p.clean_data(df)
-    missing_mask = df_clean[p.target_column].isna()
+    missing_mask = df_clean.drop(columns=['Student_Name']).isna().any(axis=1)
     missing = df_clean[missing_mask]
 
     if missing.empty:
-        print('No students with missing final scores found.')
+        print('No students with missing data found.')
         return
 
     preds = []
@@ -37,11 +37,11 @@ def main():
         X_row = X_row.reindex(columns=p.feature_columns)
         try:
             pred_val = float(p.pipeline.predict(X_row)[0])
-        except Exception as e:
+        except Exception:
             pred_val = None
         preds.append({'Student_Name': student_name, 'Predicted_Final': pred_val})
 
-    out_csv = os.path.join(os.path.dirname(__file__), 'predictions_missing_final.csv')
+    out_csv = os.path.join(os.path.dirname(__file__), 'predictions_missing_any_nan.csv')
     import csv
     with open(out_csv, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['Student_Name', 'Predicted_Final'])
@@ -49,7 +49,7 @@ def main():
         for r in preds:
             writer.writerow(r)
 
-    print(f"Predicted {len(preds)} missing final scores. Saved to {out_csv}")
+    print(f"Predicted {len(preds)} rows with missing data. Saved to {out_csv}")
 
 
 if __name__ == '__main__':
