@@ -1,0 +1,33 @@
+
+Victor Vance:
+  Maths_T3: 18.85
+  Maths_Advanced: 80.50
+
+Yara Young:
+  Phys_T2: 14.00
+  Physics: 82.50
+
+Zane Zane:
+  Hist_T4: 18.00
+  Modern_History: 72.00
+
+Alex Anderson:
+  Software_Engineering_T1: 8.00
+  Software_Engineering_Final: 87.00
+
+Will White:
+  Maths_Advanced: 200.00
+
+Xena Xie:
+  Phys_T1: 21.75
+  Phys_T2: 20.00
+  Phys_T3: 15.78
+  Phys_T4: 17.83
+  Physics: 76.50
+
+Amy Ames:
+  Software_Engineering_T1: 18.50
+  Software_Engineering_T2: 22.08
+  Software_Engineering_T3: 24.21
+  Software_Engineering_T4: 17.73
+  Software_Engineering_Final: 76.50
