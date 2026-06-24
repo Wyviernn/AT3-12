@@ -5,102 +5,119 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
-import joblib
+from sklearn.model_selection import train_test_split, cross_val_score
 
 
-class AcademicPredictor:
-    def __init__(self, target_column='Software_Engineering_Final'):
-        self.target_column = target_column
-        self.pipeline = None
-        self.feature_columns = None
+class UniversalPredictor:
+    """Predict any missing column using other columns as features."""
+
+    def __init__(self):
+        self.models = {}  # {column_name: pipeline}
+        self.feature_sets = {}  # {column_name: list of feature columns}
+        self.metrics = {}  # {column_name: {'rmse': float, 'cv_score': float}}
 
     def load_data(self, path):
         df = pd.read_csv(path)
         return df
 
     def clean_data(self, df):
+        """Normalize NaN values and clamp scores to valid range [0, 100]."""
         df = df.copy()
-        # Normalize string 'NaN' to actual NaN
         df.replace('NaN', np.nan, inplace=True)
 
-        # Identify numeric columns (exclude student name and any non-numeric)
         numeric_cols = [c for c in df.columns if c != 'Student_Name']
-
-        # Coerce to numeric where possible
         for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-
-        # Detect and null-out invalid scores: score < 0 or > 100
-        for col in numeric_cols:
+            # Clamp invalid scores
             df.loc[(df[col] < 0) | (df[col] > 100), col] = np.nan
 
         return df
 
-    def prepare_features(self, df):
-        df = df.copy()
-        if self.target_column not in df.columns:
-            raise ValueError(f"Target column '{self.target_column}' not in dataframe")
-
-        X = df.drop(columns=[self.target_column, 'Student_Name'], errors='ignore')
-        y = df[self.target_column]
-        self.feature_columns = list(X.columns)
-        return X, y
-
-    def train(self, df, test_size=0.2, random_state=42):
+    def train_models(self, df):
+        """Train a model for each column that has missing values."""
         df = self.clean_data(df)
-        X, y = self.prepare_features(df)
 
-        # Drop rows where target is missing
-        mask = y.notna()
-        X = X[mask]
-        y = y[mask]
+        # Find all columns with missing values
+        missing_cols = df.columns[df.isna().any()].tolist()
+        if 'Student_Name' in missing_cols:
+            missing_cols.remove('Student_Name')
 
-        # Split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=random_state
-        )
+        for target_col in missing_cols:
+            # Features: all columns except target and Student_Name
+            feature_cols = [c for c in df.columns if c not in [target_col, 'Student_Name']]
 
-        # Pipeline: impute median -> scale -> linear regression
-        self.pipeline = Pipeline([
-            ('imputer', SimpleImputer(strategy='median')),
-            ('scaler', StandardScaler()),
-            ('lr', LinearRegression())
-        ])
+            X = df[feature_cols].copy()
+            y = df[target_col].copy()
 
-        # Fit
-        self.pipeline.fit(X_train, y_train)
+            # Drop rows where target is missing
+            mask = y.notna()
+            X = X[mask]
+            y = y[mask]
 
-        # Evaluate
-        preds = self.pipeline.predict(X_test)
-        rmse = float(np.sqrt(np.mean((y_test - preds) ** 2)))
+            # Skip if not enough data
+            if len(X) < 3:
+                continue
 
-        # Refit on full dataset for final predictions
-        self.pipeline.fit(X, y)
+            # Pipeline: impute + scale + linear regression
+            pipeline = Pipeline([
+                ('imputer', SimpleImputer(strategy='median')),
+                ('scaler', StandardScaler()),
+                ('lr', LinearRegression())
+            ])
 
-        return {'rmse': float(rmse)}
+            # Train/test split for RMSE
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+            pipeline.fit(X_train, y_train)
+            
+            # Calculate RMSE on test set
+            y_pred = pipeline.predict(X_test)
+            rmse = float(np.sqrt(np.mean((y_test - y_pred) ** 2)))
+            
+            # Calculate cross-validation score (R² score)
+            cv_scores = cross_val_score(pipeline, X, y, cv=3, scoring='r2')
+            cv_mean = float(cv_scores.mean())
+            
+            # Refit on full dataset for final predictions
+            pipeline.fit(X, y)
+            
+            self.models[target_col] = pipeline
+            self.feature_sets[target_col] = feature_cols
+            self.metrics[target_col] = {
+                'rmse': rmse,
+                'cv_r2_score': cv_mean,
+                'train_size': len(X),
+                'test_size': len(X_test)
+            }
 
-    def predict_student(self, df, student_name):
-        if self.pipeline is None:
-            raise RuntimeError('Model not trained. Call train() first.')
+    def predict_missing_values(self, df, student_name):
+        """Predict all missing values for a specific student."""
+        df = self.clean_data(df)
 
-        df_clean = self.clean_data(df)
-        row = df_clean[df_clean['Student_Name'].str.strip().str.lower() == student_name.strip().lower()]
+        row = df[df['Student_Name'].str.strip().str.lower() == student_name.strip().lower()]
         if row.empty:
-            raise ValueError(f"Student '{student_name}' not found in data")
+            return None
 
-        X_row = row.drop(columns=[self.target_column, 'Student_Name'], errors='ignore')
-        # Ensure same feature columns ordering
-        X_row = X_row.reindex(columns=self.feature_columns)
-        pred = self.pipeline.predict(X_row)
-        return float(pred[0])
+        row = row.iloc[0]
+        predictions = {}
 
-    def save_pipeline(self, path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        joblib.dump({'pipeline': self.pipeline, 'features': self.feature_columns}, path)
+        # Check each column
+        for col in df.columns:
+            if col in ['Student_Name']:
+                continue
+            if pd.isna(row[col]):
+                # Predict this value
+                if col in self.models:
+                    features = self.feature_sets[col]
+                    X_input = row[features].values.reshape(1, -1)
+                    pred = self.models[col].predict(X_input)[0]
+                    predictions[col] = float(pred)
 
-    def load_pipeline(self, path):
-        data = joblib.load(path)
-        self.pipeline = data['pipeline']
-        self.feature_columns = data.get('features')
+        return predictions if predictions else None
+
+    def get_all_missing_students(self, df):
+        """Return list of students with any missing values."""
+        df = self.clean_data(df)
+        mask = df.drop(columns=['Student_Name']).isna().any(axis=1)
+        return df[mask]['Student_Name'].tolist()

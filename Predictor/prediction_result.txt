@@ -1,3 +1,0 @@
-Student: Alex Anderson
-Predicted Software_Engineering_Final: 87.00
-RMSE: 0.000
