@@ -3,8 +3,8 @@ import importlib.util
 
 
 def load_predictor_module():
-    path = os.path.join(os.path.dirname(__file__), 'predictor_v2.py')
-    spec = importlib.util.spec_from_file_location('predictor_v2', path)
+    path = os.path.join(os.path.dirname(__file__), 'predictor.py')
+    spec = importlib.util.spec_from_file_location('predictor', path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -54,25 +54,26 @@ def main():
         if predictions:
             results.append((student_name, predictions))
 
-    for student_name, predictions in results:
-        print(f"\n{student_name}:")
-        for col, pred_value in predictions.items():
-            # Format to 2 decimal places
-            formatted_pred = f"{pred_value:.2f}"
-            print(f"  {col}: {formatted_pred}")
+    # Print in requested S.U.N Academic predictor format
+    print('\nS.U.N Academic predictor')
+    print('-' * 91)
 
-    print("\n" + "=" * 60)
-    print(f"Predictions complete for {len(results)} student(s).")
-
-    # Save to file
     output_file = os.path.join(os.path.dirname(__file__), 'PREDICTIONS.txt')
     with open(output_file, 'w') as f:
+        f.write('S.U.N Academic predictor\n')
+        f.write('-' * 91 + '\n')
+
         for student_name, predictions in results:
-            f.write(f"\n{student_name}:\n")
+            print(student_name)
+            f.write(student_name + '\n')
             for col, pred_value in predictions.items():
                 formatted_pred = f"{pred_value:.2f}"
-                f.write(f"  {col}: {formatted_pred}\n")
+                print(f"{col}: {formatted_pred}")
+                f.write(f"{col}: {formatted_pred}\n")
+            print('-' * 13)
+            f.write('-' * 13 + '\n')
 
+    print('\nPredictions complete.')
     print(f"Results saved to {output_file}")
 
 
