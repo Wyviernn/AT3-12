@@ -12,9 +12,9 @@ class UniversalPredictor:
     """Predict any missing column using other columns as features."""
 
     def __init__(self):
-        self.models = {}  # {column_name: pipeline}
-        self.feature_sets = {}  # {column_name: list of feature columns}
-        self.metrics = {}  # {column_name: {'rmse': float, 'cv_score': float}}
+        self.models = {}
+        self.feature_sets = {}
+        self.metrics = {}
 
     def load_data(self, path):
         df = pd.read_csv(path)
@@ -28,7 +28,6 @@ class UniversalPredictor:
         numeric_cols = [c for c in df.columns if c != 'Student_Name']
         for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-            # Clamp invalid scores
             df.loc[(df[col] < 0) | (df[col] > 100), col] = np.nan
 
         return df
@@ -37,51 +36,42 @@ class UniversalPredictor:
         """Train a model for each column that has missing values."""
         df = self.clean_data(df)
 
-        # Find all columns with missing values
         missing_cols = df.columns[df.isna().any()].tolist()
         if 'Student_Name' in missing_cols:
             missing_cols.remove('Student_Name')
 
         for target_col in missing_cols:
-            # Features: all columns except target and Student_Name
             feature_cols = [c for c in df.columns if c not in [target_col, 'Student_Name']]
 
             X = df[feature_cols].copy()
             y = df[target_col].copy()
 
-            # Drop rows where target is missing
             mask = y.notna()
             X = X[mask]
             y = y[mask]
 
-            # Skip if not enough data
             if len(X) < 3:
                 continue
 
-            # Pipeline: impute + scale + linear regression
             pipeline = Pipeline([
                 ('imputer', SimpleImputer(strategy='median')),
                 ('scaler', StandardScaler()),
                 ('lr', LinearRegression())
             ])
 
-            # Train/test split for RMSE
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=42
             )
             pipeline.fit(X_train, y_train)
-            
-            # Calculate RMSE on test set
+
             y_pred = pipeline.predict(X_test)
             rmse = float(np.sqrt(np.mean((y_test - y_pred) ** 2)))
-            
-            # Calculate cross-validation score (R² score)
+
             cv_scores = cross_val_score(pipeline, X, y, cv=3, scoring='r2')
             cv_mean = float(cv_scores.mean())
-            
-            # Refit on full dataset for final predictions
+
             pipeline.fit(X, y)
-            
+
             self.models[target_col] = pipeline
             self.feature_sets[target_col] = feature_cols
             self.metrics[target_col] = {
@@ -102,12 +92,10 @@ class UniversalPredictor:
         row = row.iloc[0]
         predictions = {}
 
-        # Check each column
         for col in df.columns:
             if col in ['Student_Name']:
                 continue
             if pd.isna(row[col]):
-                # Predict this value
                 if col in self.models:
                     features = self.feature_sets[col]
                     X_input = row[features].values.reshape(1, -1)
@@ -117,7 +105,6 @@ class UniversalPredictor:
         return predictions if predictions else None
 
     def get_all_missing_students(self, df):
-        """Return list of students with any missing values."""
         df = self.clean_data(df)
         mask = df.drop(columns=['Student_Name']).isna().any(axis=1)
         return df[mask]['Student_Name'].tolist()

@@ -5,14 +5,15 @@ Usage:
 Install requirements:
 
 ```bash
-pip install -r predictor/requirements.txt
+pip install -r Predictor/requirements.txt
 ```
 
-Run the predictor (will train and predict for Alex Anderson):
+Run the predictor (uses `Data/data.csv` and predicts all missing values):
 
 ```bash
-python3 predictor/run_predictor.py
+python3 Predictor/run_final.py
 ```
 
 Outputs:
-- `predictor/prediction_result.txt` — contains the predicted score and RMSE.
+- `Predictor/PREDICTIONS.txt` — formatted predictions for all students with missing values
+- Model evaluation printed to console (RMSE and cross-validation R² per column)
