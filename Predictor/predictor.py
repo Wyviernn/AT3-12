@@ -6,6 +6,24 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, cross_val_score
+import importlib.util
+
+# Load cleaning.clean_data from cleaning.py if available, else define fallback
+_cleaning_path = os.path.join(os.path.dirname(__file__), 'cleaning.py')
+if os.path.exists(_cleaning_path):
+    spec = importlib.util.spec_from_file_location('cleaning', _cleaning_path)
+    _clean_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_clean_mod)
+    clean_data = _clean_mod.clean_data
+else:
+    def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df.replace('NaN', np.nan, inplace=True)
+        numeric_cols = [c for c in df.columns if c != 'Student_Name']
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df.loc[(df[col] < 0) | (df[col] > 100), col] = np.nan
+        return df
 
 
 class UniversalPredictor:
@@ -20,21 +38,11 @@ class UniversalPredictor:
         df = pd.read_csv(path)
         return df
 
-    def clean_data(self, df):
-        """Normalize NaN values and clamp scores to valid range [0, 100]."""
-        df = df.copy()
-        df.replace('NaN', np.nan, inplace=True)
-
-        numeric_cols = [c for c in df.columns if c != 'Student_Name']
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-            df.loc[(df[col] < 0) | (df[col] > 100), col] = np.nan
-
-        return df
+    # cleaning delegated to Predictor/cleaning.py via clean_data()
 
     def train_models(self, df):
         """Train a model for each column that has missing values."""
-        df = self.clean_data(df)
+        df = clean_data(df)
 
         missing_cols = df.columns[df.isna().any()].tolist()
         if 'Student_Name' in missing_cols:
@@ -83,7 +91,7 @@ class UniversalPredictor:
 
     def predict_missing_values(self, df, student_name):
         """Predict all missing values for a specific student."""
-        df = self.clean_data(df)
+        df = clean_data(df)
 
         row = df[df['Student_Name'].str.strip().str.lower() == student_name.strip().lower()]
         if row.empty:
@@ -105,6 +113,6 @@ class UniversalPredictor:
         return predictions if predictions else None
 
     def get_all_missing_students(self, df):
-        df = self.clean_data(df)
+        df = clean_data(df)
         mask = df.drop(columns=['Student_Name']).isna().any(axis=1)
         return df[mask]['Student_Name'].tolist()
