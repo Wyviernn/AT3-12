@@ -8,7 +8,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, cross_val_score
 import importlib.util
 
-# Load cleaning.clean_data from cleaning.py if available, else define fallback
 _cleaning_path = os.path.join(os.path.dirname(__file__), 'cleaning.py')
 if os.path.exists(_cleaning_path):
     spec = importlib.util.spec_from_file_location('cleaning', _cleaning_path)
@@ -37,8 +36,6 @@ class UniversalPredictor:
     def load_data(self, path):
         df = pd.read_csv(path)
         return df
-
-    # cleaning delegated to Predictor/cleaning.py via clean_data()
 
     def train_models(self, df):
         """Train a model for each column that has missing values."""

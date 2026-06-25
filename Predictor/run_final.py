@@ -54,7 +54,6 @@ def main():
         if predictions:
             results.append((student_name, predictions))
 
-    # Print in requested S.U.N Academic predictor format
     print('\nS.U.N Academic predictor')
     print('-' * 91)
 
